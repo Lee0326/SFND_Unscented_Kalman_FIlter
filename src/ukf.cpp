@@ -55,9 +55,16 @@ UKF::UKF() {
    * Hint: one or more values initialized above might be wildly off...
    */
   is_initialized_ = false;
+
   use_laser_ = false;
+
   use_radar_ = false;
-  
+
+  Xsig_pred_ = MatrixXd(5,11);
+
+  n_x_ = 5;
+
+  n_aug_ = 7;
 }
 
 UKF::~UKF() {}
