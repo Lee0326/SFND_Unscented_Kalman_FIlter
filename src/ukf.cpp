@@ -54,6 +54,10 @@ UKF::UKF() {
    * TODO: Complete the initialization. See ukf.h for other member properties.
    * Hint: one or more values initialized above might be wildly off...
    */
+  is_initialized_ = false;
+  use_laser_ = false;
+  use_radar_ = false;
+  
 }
 
 UKF::~UKF() {}
