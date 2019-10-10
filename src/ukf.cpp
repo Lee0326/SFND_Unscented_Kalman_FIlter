@@ -74,6 +74,29 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    * TODO: Complete this function! Make sure you switch between lidar and radar
    * measurements.
    */
+  // Generating Sigma Points
+  if (!is_initialized_)
+  {
+    if (meas_package.sensor_type_ == MeasurementPackage::LASER)
+    {
+      x_[0] = meas_package.raw_measurements_[0];
+      x_[1] = meas_package.raw_measurements_[1];
+      x_[2] = 0;
+      x_[3] = 0;
+      x_[4] = 0; 
+    }
+    else if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
+    {
+      double rho = meas_package.raw_measurements_[0];
+      double phi = meas_package.raw_measurements_[1];
+      double rhodot = meas_package.raw_measurements_[2];
+    }
+    is_initialized_ = true;
+    return; 
+  // Predict
+
+  //Update
+  }
 }
 
 void UKF::Prediction(double delta_t) {
