@@ -137,6 +137,30 @@ void UKF::Prediction(double delta_t) {
   }
   Xsig.block<5,5>(0,1) += sqrt(lambda_+n_x_)*A;
   Xsig.block<5,5>(0,n_x_+1) -= sqrt(lambda_+n_x_)*A;
+  // Augmentation
+  VectorXd x_aug = VectorXd(n_aug_);
+  MatrixXd Xsig_aug = MatrixXd(n_aug_,2*n_aug_+1);
+  MatrixXd P_aug = MatrixXd(n_aug_,n_aug_);
+  
+  x_aug.head(5) = x_;
+  x_aug[5] = 0;
+  x_aug[6] = 0;
+
+  P_aug.fill(0);
+  P_aug.topLeftCorner(n_x_,n_x_) = P_;
+  P_aug(5,5) = std_a_*std_a_;
+  P_aug(6,6) = std_yawdd_*std_yawdd_;
+
+  //Create Augmented Sigma Points
+  MatrixXd L = P_aug.llt().matrixL();
+  for (int i=0; i<2*n_aug_+1; i++)
+  {
+    Xsig_aug.col(i) = x_aug;
+  }
+  Xsig_aug.block<7,7>(0,1) += sqrt(lambda_+n_aug_)*L;
+  Xsig_aug.block<7,7>(0,n_aug_+1) += sqrt(lambda_+n_aug_)*L;
+  // Sigma Point Prediction
+  
 
 }
 
