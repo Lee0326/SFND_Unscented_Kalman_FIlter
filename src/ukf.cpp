@@ -65,6 +65,14 @@ UKF::UKF() {
   n_x_ = 5;
 
   n_aug_ = 7;
+  
+  lambda_ = 3 - n_x_;
+       
+  P_<< 0.15, 0, 0, 0, 0,
+      0, 0.15, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0;
 }
 
 UKF::~UKF() {}
@@ -84,18 +92,32 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       x_[2] = 0;
       x_[3] = 0;
       x_[4] = 0; 
+
     }
     else if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
     {
       double rho = meas_package.raw_measurements_[0];
       double phi = meas_package.raw_measurements_[1];
       double rhodot = meas_package.raw_measurements_[2];
+      x_[0] = rho*cos(phi);
+      x_[1] = rho*sin(phi);
+      x_[2] = rhodot;
     }
     is_initialized_ = true;
+    time_us_ = meas_package.timestamp_;
     return; 
+  }
   // Predict
-
+  double delta_t = meas_package.timestamp_-time_us_;
+  Prediction(delta_t);
   //Update
+  if (meas_package.sensor_type_ == MeasurementPackage::LASER)
+  {
+    UpdateRadar(meas_package);
+  }
+  else if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
+  {
+    UpdateRadar(meas_package);
   }
 }
 
@@ -105,6 +127,17 @@ void UKF::Prediction(double delta_t) {
    * Modify the state vector, x_. Predict sigma points, the state, 
    * and the state covariance matrix.
    */
+  // Generating the Sigma Points
+  MatrixXd Xsig = MatrixXd(n_x_, 2*n_x_+1);
+  MatrixXd A = P_.llt().matrixL();
+
+  for (int i=0; i<2*n_x_+1; i++)
+  {
+    Xsig.col(i) = x_;
+  }
+  Xsig.block<5,5>(0,1) += sqrt(lambda_+n_x_)*A;
+  Xsig.block<5,5>(0,n_x_+1) -= sqrt(lambda_+n_x_)*A;
+
 }
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
