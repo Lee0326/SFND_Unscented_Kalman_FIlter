@@ -21,11 +21,11 @@ UKF::UKF() {
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
 
-  // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  // Process noi5e standard deviation longitudinal acceleration in m/s^2
+  std_a_ = 1;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30;
+  std_yawdd_ = 1;
   
   /**
    * DO NOT MODIFY measurement noise values below.
@@ -84,14 +84,14 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       use_radar_ = false;
       x_[0] = meas_package.raw_measurements_[0];
       x_[1] = meas_package.raw_measurements_[1];
-      x_[2] = 0;
+      x_[2] = 0.2;
       x_[3] = 0;
       x_[4] = 0; 
-      P_<< 1, 0, 0, 0, 0,
-           0, 1, 0, 0, 0,
+      P_<< std_laspx_*std_laspx_, 0, 0, 0, 0,
+           0, std_laspy_*std_laspy_, 0, 0, 0,
            0, 0, 1, 0, 0,
-           0, 0, 0, 0.0009, 0,
-           0, 0, 0, 0, 0.09;
+           0, 0, 0, 1, 0,
+           0, 0, 0, 0, 1;
     }
     else if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
     {
@@ -104,10 +104,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       x_[2] = rhodot;
       x_[3] = phi;
       x_[4] = 0;
-      P_<< 1, 0, 0, 0, 0,
-           0, 1, 0, 0, 0,
-           0, 0, 1, 0, 0,
-           0, 0, 0, 0.0009, 0,
+      P_<< std_radr_*std_radr_, 0, 0, 0, 0,
+           0, std_radr_*std_radr_, 0, 0, 0,
+           0, 0, std_radrd_*std_radrd_, 0, 0,
+           0, 0, 0, 0.09, 0,
            0, 0, 0, 0, 0.09;
     }
     time_us_ = meas_package.timestamp_;
@@ -130,49 +130,36 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 }
 
 void UKF::Prediction(double delta_t) {
-  /**
-   * TODO: Complete this function! Estimate the object's location. 
-   * Modify the state vector, x_. Predict sigma points, the state, 
-   * and the state covariance matrix.
-   */
-  // Generating the Sigma Points
-  MatrixXd Xsig = MatrixXd(n_x_, 2*n_x_+1);
-  Xsig.fill(0.0);
-  MatrixXd A = P_.llt().matrixL();
-
-  for (int i=0; i<2*n_x_+1; ++i)
-  {
-    Xsig.col(i) = x_;
-  }
-  Xsig.block<5,5>(0,1) += sqrt(lambda_+n_x_)*A;
-  Xsig.block<5,5>(0,n_x_+1) -= sqrt(lambda_+n_x_)*A;
-  
+  // /**
+  //  * TODO: Complete this function! Estimate the object's location. 
+  //  * Modify the state vector, x_. Predict sigma points, the state, 
+  //  * and the state covariance matrix.
+  //  */
   // Augmentation
-  VectorXd x_aug = VectorXd(n_aug_);
+  VectorXd x_aug = VectorXd(7);
   MatrixXd Xsig_aug = MatrixXd(n_aug_,2*n_aug_+1);
-  MatrixXd P_aug = MatrixXd(n_aug_,n_aug_);
+  MatrixXd P_aug = MatrixXd(7,7);
   
   x_aug.head(5) = x_;
   x_aug[5] = 0;
   x_aug[6] = 0;
 
   P_aug.fill(0.0);
-  P_aug.topLeftCorner(n_x_,n_x_) = P_;
+  P_aug.topLeftCorner(5,5) = P_;
   P_aug(5,5) = std_a_*std_a_;
   P_aug(6,6) = std_yawdd_*std_yawdd_;
 
   //Create Augmented Sigma Points
   MatrixXd L = P_aug.llt().matrixL();
   Xsig_aug.fill(0.0);
-  Xsig_aug.col(0) = x_aug;
-  for (int i=0; i<n_aug_; ++i)
+  for (int i=0; i<2*n_aug_+1; ++i)
   {
-    Xsig_aug.col(i+1) = x_aug + sqrt(lambda_+n_aug_)*L.col(i);
-    Xsig_aug.col(i+1+n_aug_) = x_aug - sqrt(lambda_+n_aug_)*L.col(i);
+    Xsig_aug.col(i) = x_aug;
   }
-  // Xsig_aug.block<7,7>(0,1) += sqrt(lambda_+n_aug_)*L;
-  // Xsig_aug.block<7,7>(0,n_aug_+1) -= sqrt(lambda_+n_aug_)*L;
+  Xsig_aug.block<7,7>(0,1) += sqrt(lambda_+n_aug_)*L;
+  Xsig_aug.block<7,7>(0,n_aug_+1) -= sqrt(lambda_+n_aug_)*L;
   // Sigma Point Prediction
+  
   
   for (int i=0; i<2*n_aug_+1; ++i)
   {
@@ -183,23 +170,29 @@ void UKF::Prediction(double delta_t) {
     double yaw_dot = Xsig_aug(4,i);
     double nu_a = Xsig_aug(5,i);
     double nu_yaw_dotdot = Xsig_aug(6,i);
+    
     double px_pred, py_pred;
 
     if (fabs(yaw_dot) > 0.001)
     {
-      px_pred = p_x + (v/yaw_dot)*(sin(yaw+yaw_dot*delta_t) - sin(yaw))
-      + delta_t*delta_t*cos(yaw)*nu_a/2;
-      py_pred = p_y - (v/yaw_dot)*(cos(yaw+yaw_dot*delta_t) - cos(yaw))
-      + delta_t*delta_t*sin(yaw)*nu_a/2;
+      px_pred = p_x + v/yaw_dot * (sin(yaw+yaw_dot*delta_t) - sin(yaw));
+      py_pred = p_y - v/yaw_dot * (cos(yaw+yaw_dot*delta_t) - cos(yaw));
     }
     else 
     {
-      px_pred = p_x + v*cos(yaw)*delta_t + delta_t*delta_t*cos(yaw)*nu_a/2;
-      py_pred = p_y + v*sin(yaw)*delta_t + delta_t*delta_t*sin(yaw)*nu_a/2;
+      px_pred = p_x + v*cos(yaw)*delta_t;
+      py_pred = p_y + v*sin(yaw)*delta_t;
     }
-    double v_pred = v + nu_a*delta_t;
-    double yaw_pred = yaw + yaw_dot*delta_t + delta_t*delta_t*nu_yaw_dotdot/2;
-    double yaw_dot_pred = yaw_dot + delta_t*nu_yaw_dotdot;
+    double v_pred = v;
+    double yaw_pred = yaw + yaw_dot*delta_t;
+    double yaw_dot_pred = yaw_dot;
+
+    //add noise
+    px_pred += 0.5*nu_a*delta_t*delta_t * cos(yaw);
+    py_pred += 0.5*nu_a*delta_t*delta_t * sin(yaw);
+    v_pred += nu_a*delta_t;
+    yaw_pred += 0.5*nu_yaw_dotdot*delta_t*delta_t;
+    yaw_dot_pred += nu_yaw_dotdot*delta_t;
 
     Xsig_pred_(0,i) = px_pred;
     Xsig_pred_(1,i) = py_pred;
@@ -211,10 +204,10 @@ void UKF::Prediction(double delta_t) {
   weights_(0) = lambda_/(lambda_+n_aug_);
   for (int i=1; i<2*n_aug_+1; ++i)
   {
-    weights_(i) = 1/(2*(lambda_+n_aug_));
+    weights_(i) = 1/(2*lambda_+2*n_aug_);
   } // set weights
   x_.fill(0.0);
-  for (int i=0; i<2*n_aug_; ++i)
+  for (int i=0; i<2*n_aug_+1; ++i)
   {
     x_ += weights_(i)*Xsig_pred_.col(i);
   } // predict state mean
@@ -259,7 +252,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   S.fill(0.0);
   Tc.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; ++i) 
+  for (int i = 0; i < 2*n_aug_+1; ++i) 
   {  // 2n+1 simga points
     // residual
     VectorXd z_diff = Zsig.col(i) - z_pred;
